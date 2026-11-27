@@ -274,6 +274,17 @@ const pcol = (t, xr) => css(prgb(t, xr));
 function rng(seed) { let a = seed >>> 0 || 1; return () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 const gcd = (a, b) => b ? gcd(b, a % b) : a;
 const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+/* iOS Safari caps total canvas memory and frees it lazily, so reuse working canvases instead of making new ones */
+const POOL = {};
+function pool(k, w, h) {
+  w = Math.max(1, Math.round(w)); h = Math.max(1, Math.round(h));
+  const c = POOL[k] || (POOL[k] = document.createElement('canvas'));
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const x = c.getContext('2d', { willReadFrequently: true });
+  if (!x) throw new Error('the phone ran out of canvas memory; reload the page');
+  x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.clearRect(0, 0, w, h);
+  return c;
+}
 
 /* ---------- image + mask ---------- */
 let src = null, srcW = 0, srcH = 0, mask = null, cut = null, imgRect = null, keyCol = null;
@@ -281,14 +292,14 @@ function setSource(im, maskData) {
   const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height;
   const k = Math.min(1, 900 / Math.max(iw, ih));
   srcW = Math.max(1, Math.round(iw * k)); srcH = Math.max(1, Math.round(ih * k));
-  src = mk(srcW, srcH); src.getContext('2d').drawImage(im, 0, 0, srcW, srcH);
+  src = pool('src', srcW, srcH); src.getContext('2d').drawImage(im, 0, 0, srcW, srcH);
   mask = new Uint8ClampedArray(srcW * srcH).fill(255);
   if (maskData) for (let i = 0; i < mask.length; i++) mask[i] = maskData[i * 4];
   makeCut();
 }
 function makeCut() {
   if (!src) return;
-  cut = mk(srcW, srcH); const c = cut.getContext('2d');
+  cut = pool('cut', srcW, srcH); const c = cut.getContext('2d');
   const id = src.getContext('2d').getImageData(0, 0, srcW, srcH);
   for (let i = 0; i < mask.length; i++) id.data[i * 4 + 3] = mask[i];
   c.putImageData(id, 0, 0);
@@ -297,7 +308,7 @@ function saveImg() {
   if (!src) { try { localStorage.removeItem('lw.src'); localStorage.removeItem('lw.mask'); } catch (e) {} return; }
   try {
     localStorage.setItem('lw.src', src.toDataURL('image/jpeg', .85));
-    const m = mk(srcW, srcH), c = m.getContext('2d'), id = c.createImageData(srcW, srcH);
+    const m = pool('maskout', srcW, srcH), c = m.getContext('2d'), id = c.createImageData(srcW, srcH);
     for (let i = 0; i < mask.length; i++) { id.data[i * 4] = id.data[i * 4 + 1] = id.data[i * 4 + 2] = mask[i]; id.data[i * 4 + 3] = 255; }
     c.putImageData(id, 0, 0); localStorage.setItem('lw.mask', m.toDataURL('image/png'));
   } catch (e) {}
@@ -325,7 +336,7 @@ async function aiRemove() {
       progress: (key, cur, tot) => { bgS.textContent = key.includes('fetch') ? `Downloading model… ${tot ? Math.round(cur / tot * 100) : 0}%` : 'Cutting out…'; }
     });
     const im = await loadImg(URL.createObjectURL(out));
-    const c = mk(srcW, srcH).getContext('2d'); c.drawImage(im, 0, 0, srcW, srcH);
+    const c = pool('ai', srcW, srcH).getContext('2d'); c.drawImage(im, 0, 0, srcW, srcH);
     const d = c.getImageData(0, 0, srcW, srcH).data, keep = new Uint8ClampedArray(srcW * srcH);
     for (let i = 0; i < keep.length; i++) keep[i] = d[i * 4 + 3];
     applyMask(keep); bgS.textContent = 'Background removed. Use Touch up to fix any edges.';
@@ -378,7 +389,7 @@ function stroke(x, pts, lw, w) {
   }
 }
 function makePattern(w, h) {
-  const c = mk(w, h), x = c.getContext('2d'), R = rng(S.seed * 9973 + 7);
+  const c = pool('pat', w, h), x = c.getContext('2d'), R = rng(S.seed * 9973 + 7);
   const lw = Math.max(1, S.line * h / 240), n = Math.max(1, Math.round(w / h)), tw = w / n, rad = Math.min(tw, h) * .46, TAU = Math.PI * 2;
   const line = p => stroke(x, p, lw, w);
   const C = S.count, D = S.detail;
@@ -444,7 +455,7 @@ function makePattern(w, h) {
       const L = D * 4 + 6; for (let j = -L; j <= L; j++) line([cx + j * w * .012, hz, .5 + j / L / 2, cx + j * w / L * .9, h, .5 + j / L / 2]);
     } break;
     case 'plasma': {
-      const sw = Math.ceil(w / 3), sh = Math.ceil(h / 3), sm = mk(sw, sh), sx = sm.getContext('2d'), id = sx.createImageData(sw, sh), dd = id.data, f = (.5 + D * .35) / sh * 6;
+      const sw = Math.ceil(w / 3), sh = Math.ceil(h / 3), sm = pool('plasma', sw, sh), sx = sm.getContext('2d'), id = sx.createImageData(sw, sh), dd = id.data, f = (.5 + D * .35) / sh * 6;
       for (let j = 0; j < sh; j++) for (let i = 0; i < sw; i++) {
         const v = Math.sin(i * f) + Math.sin(j * f * 1.3 + S.seed) + Math.sin((i + j) * f * .7) + Math.sin(Math.hypot(i - sw / 2, j - sh / 2) * f * 1.1);
         const b = Math.pow(.5 + .5 * Math.cos(v * C * .8), 6), col = prgb((v + 4) / 8, i / sw), o = (j * sw + i) * 4;
@@ -549,7 +560,7 @@ function applyEffects(c, w, h) {
   }
   if (S.glow > 0) {
     c.save(); c.globalCompositeOperation = 'lighter'; c.imageSmoothingEnabled = true;
-    for (const f of [6, 20]) { const sm = mk(Math.max(1, Math.round(w / f)), Math.max(1, Math.round(h / f))); sm.getContext('2d').drawImage(c.canvas, 0, 0, sm.width, sm.height); c.globalAlpha = S.glow / 100 * .8; c.drawImage(sm, 0, 0, w, h); }
+    for (const f of [6, 20]) { const sm = pool('g' + f, w / f, h / f); sm.getContext('2d').drawImage(c.canvas, 0, 0, sm.width, sm.height); c.globalAlpha = S.glow / 100 * .8; c.drawImage(sm, 0, 0, w, h); }
     c.restore();
   }
 }
@@ -571,14 +582,14 @@ function rebuild() {
   if (hasImg) imgRect = fitRect(srcW, srcH, fw, fh, S.fit);
   if (hasPat && (!hasImg || S.patBlend === 'behind')) c.drawImage(pat, 0, 0);
   if (hasImg && hasPat && S.patBlend === 'inside') {
-    const t = mk(fw, fh), tc = t.getContext('2d'); tc.drawImage(cut, imgRect.x, imgRect.y, imgRect.w, imgRect.h);
+    const t = pool('tmp', fw, fh), tc = t.getContext('2d'); tc.drawImage(cut, imgRect.x, imgRect.y, imgRect.w, imgRect.h);
     tc.globalCompositeOperation = 'source-in'; tc.drawImage(pat, 0, 0); c.drawImage(t, 0, 0);
   } else if (hasImg) {
     c.drawImage(cut, imgRect.x, imgRect.y, imgRect.w, imgRect.h);
     if (hasPat && S.patBlend === 'over') { c.globalCompositeOperation = 'lighter'; c.drawImage(pat, 0, 0); c.globalCompositeOperation = 'source-over'; }
   }
   applyEffects(c, fw, fh);
-  if (S.mirror) { const t = mk(fw, fh); t.getContext('2d').drawImage(final, 0, 0); c.save(); c.setTransform(-1, 0, 0, 1, fw, 0); c.drawImage(t, 0, 0); c.restore(); }
+  if (S.mirror) { const t = pool('tmp2', fw, fh); t.getContext('2d').drawImage(final, 0, 0); c.save(); c.setTransform(-1, 0, 0, 1, fw, 0); c.drawImage(t, 0, 0); c.restore(); }
   drawPreview();
 }
 let rt; const schedule = () => { clearTimeout(rt); rt = setTimeout(rebuild, 80); };
@@ -628,12 +639,25 @@ function onField(e) {
 }
 document.addEventListener('input', onField); document.addEventListener('change', onField);
 
+async function decodeFile(f) {
+  const url = URL.createObjectURL(f);
+  try { return await loadImg(url); }
+  catch (e) {
+    if (window.createImageBitmap) { try { return await createImageBitmap(f); } catch (e2) {} }
+    throw new Error(`this ${f.type || 'file type'} could not be decoded`);
+  } finally { setTimeout(() => URL.revokeObjectURL(url), 2000); }
+}
 $('#file').addEventListener('change', async e => {
-  const f = e.target.files[0]; if (!f) return;
-  try { const url = URL.createObjectURL(f), im = await loadImg(url); setSource(im); URL.revokeObjectURL(url);
-    S.useImg = true; matchAspect(); syncUI(); rebuild(); saveImg(); bgS.textContent = 'Image loaded. Remove the background next, or keep it.'; }
-  catch (err) { toast('That image could not be opened.'); }
-  e.target.value = '';
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  bgS.textContent = 'Opening image…';
+  let im;
+  try { im = await decodeFile(f); }
+  catch (err) { bgS.textContent = `Could not open the image: ${err.message}. Try a JPEG, PNG or a screenshot of it.`; toast('That image could not be opened.'); return; }
+  try {
+    setSource(im); if (im.close) im.close();
+    S.useImg = true; matchAspect(); syncUI(); rebuild(); saveImg();
+    bgS.textContent = 'Image loaded. Remove the background next, or keep it.';
+  } catch (err) { console.error(err); bgS.textContent = `The image opened but could not be processed: ${err.message}.`; toast('Image processing failed. See the message under the buttons.', 5000); }
 });
 $('#clearImg').onclick = () => { src = cut = mask = null; saveImg(); rebuild(); };
 $('#bgGo').onclick = () => {
@@ -647,7 +671,7 @@ $('#maskReset').onclick = () => { if (!mask) return; mask.fill(255); makeCut(); 
 function matchAspect() {
   const { H } = dims(); let ar = null;
   if (S.useImg && src) ar = srcW / srcH;
-  else if (S.pat === 'text') { const x = mk(10, 10).getContext('2d'); x.font = `${S.font} 100px -apple-system,Arial,sans-serif`; ar = x.measureText(S.text || ' ').width / 100 / .78 * 1.08; }
+  else if (S.pat === 'text') { const x = pool('measure', 10, 10).getContext('2d'); x.font = `${S.font} 100px -apple-system,Arial,sans-serif`; ar = x.measureText(S.text || ' ').width / 100 / .78 * 1.08; }
   else ar = 1;
   S.widthCm = Math.max(10, Math.min(300, Math.round(H * ar))); save();
 }
@@ -892,7 +916,7 @@ else if (window.top !== window.self) { const w = $('#secwarn'); w.hidden = false
 syncUI();
 (async () => {
   try { const s = localStorage.getItem('lw.src'), m = localStorage.getItem('lw.mask');
-    if (s) { const im = await loadImg(s); let md = null; if (m) { const mi = await loadImg(m), c = mk(mi.width, mi.height).getContext('2d'); c.drawImage(mi, 0, 0); md = c.getImageData(0, 0, mi.width, mi.height).data; }
+    if (s) { const im = await loadImg(s); let md = null; if (m) { const mi = await loadImg(m), c = pool('ld', mi.width, mi.height).getContext('2d'); c.drawImage(mi, 0, 0); md = c.getImageData(0, 0, mi.width, mi.height).data; }
       setSource(im, md && md.length === im.width * im.height * 4 ? md : null); } } catch (e) {}
   rebuild();
 })();
