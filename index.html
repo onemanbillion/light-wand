@@ -168,6 +168,9 @@ button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visi
       <label class="row w" data-show="mode!=timed"><span>Start point</span><select data-k="anchor"><option value="left">Left edge</option><option value="center">Centre</option><option value="right">Right edge</option><option value="topleft">Top-left (rows)</option></select></label>
       <label class="row"><span>Light strip</span><input type="range" data-k="strip" min="0" max="160"><output></output></label>
       <label class="row" data-show="mode!=timed"><span>Lag fix</span><input type="range" data-k="latency" min="0" max="120"><output data-u=" ms"></output></label>
+      <label class="row w"><span>Hold phone</span><select data-k="orient"><option value="portrait">Upright (portrait)</option><option value="landscape">Sideways (landscape): hides the status bar</option></select></label>
+      <p class="note" data-show="orient=landscape">iOS hides the time and signal bar when an iPhone is sideways. Use the Home Screen app with Portrait Orientation Lock off. The image will be shorter, about the width of the phone, so use "paint in rows" for taller images. Run Sensors again while holding the phone sideways.</p>
+      <p class="note" data-show="orient=portrait">Upright, iOS always shows the time and signal at the top, and they will streak across the photo. Cover that strip with black tape, or hold the phone sideways.</p>
       <label class="row w"><span>Screen PPI</span><input type="number" data-k="ppi" min="200" max="600" step="1"></label>
       <p class="note">Left and right are as seen by the camera. Light strip 0 lights the whole screen as a moving window: brighter, but it needs good tracking. Most recent iPhones are 460 PPI; mini models are 476.</p>
     </div>
@@ -189,12 +192,12 @@ button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visi
     <summary>How to get a good shot</summary>
     <div class="body"><ul class="tips">
       <li>Put the camera on a tripod in a dark room or outside at night. Try ISO 100–400, f/8, and Bulb or 10–30 s. Focus manually where the phone will be.</li>
-      <li>On the phone: brightness to full, Auto-Brightness, True Tone and Night Shift off, Portrait Orientation Lock on, Low Power Mode off.</li>
+      <li>On the phone: brightness to full, Auto-Brightness, True Tone and Night Shift off, Low Power Mode off. Portrait Orientation Lock on if you hold the phone upright; off if you hold it sideways.</li>
       <li>Point the screen at the camera. Wear dark clothes and keep moving, and you will barely show up.</li>
       <li>Run <b>Sensors</b> once to calibrate; it works out how you hold the phone. Use the live test to check the dot follows you.</li>
       <li>Sweep across the full width in 1–3 s. Slower sweeps give brighter, smoother pictures. Going back and forth over the image builds up brightness.</li>
       <li>If fast sweeps look dotted, that is the OLED's PWM flicker. Slow down, or turn it into a style with Dashes.</li>
-      <li>For a full-screen app: Safari Share → Add to Home Screen. The page must be served over https for the motion sensors.</li>
+      <li>For a full-screen app: Safari Share → Add to Home Screen. Hold it sideways to hide the time and signal bar too. The home-bar line at the bottom stays dimly lit, so a small piece of black tape over it keeps it out of the photo.</li>
     </ul></div>
   </details>
 </main>
@@ -220,7 +223,7 @@ const DEF = {
   pat:'spiro', patMode:'rainbow', colA:'#ff3b6b', colB:'#3bd5ff', count:7, detail:3, line:3, seed:1, text:'HELLO', textStyle:'fill', font:'900', patBlend:'over',
   color:'original', tint:'#ffffff', tint2:'#3bd5ff', bright:100, contrast:100, sat:100, cut:8, outline:'off', thick:2, poster:0, lines:0, halftone:0, glow:0, mirror:false,
   dash:0, hueCycle:false,
-  mode:'gyro', radius:60, widthCm:60, vert:'fill', heightCm:60, fill:100, anchor:'left', strip:12, latency:25, speed:40, pingpong:true, ppi:460, snap:true,
+  mode:'gyro', radius:60, widthCm:60, vert:'fill', heightCm:60, fill:100, anchor:'left', strip:12, latency:25, speed:40, pingpong:true, ppi:460, snap:true, orient:'portrait',
   countdown:5, preroll:1, duration:10, sound:true, ticks:true,
   gx:{k:'gamma',s:1}, gy:{k:'beta',s:-1}, ax:{k:'x',s:1}, ay:{k:'y',s:1}
 };
@@ -236,8 +239,15 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const isPhone = matchMedia('(pointer:coarse)').matches;
 const dprNow = () => window.devicePixelRatio || 1;
 const pxcm = () => S.ppi / (isPhone ? dprNow() : 3) / 2.54;               // CSS px per cm on the phone
-const scrHcm = () => (isPhone ? Math.max(screen.width, screen.height) : 852) / pxcm();
-const scrWcm = () => (isPhone ? Math.min(screen.width, screen.height) : 393) / pxcm();
+const longCm = () => (isPhone ? Math.max(screen.width, screen.height) : 852) / pxcm(), shortCm = () => (isPhone ? Math.min(screen.width, screen.height) : 393) / pxcm();
+const scrHcm = () => S.orient === 'landscape' ? shortCm() : longCm();
+const scrWcm = () => S.orient === 'landscape' ? longCm() : shortCm();
+const CALDEF = { portrait: { gx: { k: 'gamma', s: 1 }, gy: { k: 'beta', s: -1 }, ax: { k: 'x', s: 1 }, ay: { k: 'y', s: 1 } },
+  landscape: { gx: { k: 'beta', s: 1 }, gy: { k: 'gamma', s: 1 }, ax: { k: 'y', s: 1 }, ay: { k: 'x', s: -1 } } };
+function switchOrient(from, to) {
+  S['cal_' + from] = { gx: S.gx, gy: S.gy, ax: S.ax, ay: S.ay };
+  Object.assign(S, S['cal_' + to] || CALDEF[to]);
+}
 const rows = () => S.vert === 'rows' && S.mode !== 'timed';
 function dims() { return { W: S.widthCm, H: rows() ? S.heightCm : scrHcm() * S.fill / 100 }; }
 function anchorOf(W, H) {
@@ -611,6 +621,7 @@ function onField(e) {
   const v = el.type === 'checkbox' ? el.checked : (el.type === 'range' || el.type === 'number') ? parseFloat(el.value) : el.value;
   if (el.type === 'number' && !(v > 0)) return;
   if (S[k] === v) return;
+  if (k === 'orient') switchOrient(S.orient, v);
   S[k] = v; save(); fmt(el); updateShow();
   if (k === 'mode' && v !== 'timed' && S.vert === 'rows') { /* keep */ }
   if (NOBUILD.has(k)) { if (k === 'anchor') drawPreview(); } else schedule();
@@ -755,7 +766,8 @@ async function shoot() {
   wake(); stage.hidden = false; sizeStage(); phase = 'count';
   for (let i = S.countdown; i > 0; i--) {
     if (phase !== 'count') return;
-    cd.innerHTML = `<b>${i}</b><span>Open the shutter when the screen goes black</span>`; beep(660, .12); await sleep(1000);
+    const wrong = (S.orient === 'landscape') !== (innerWidth > innerHeight);
+    cd.innerHTML = `<b>${i}</b><span>${wrong ? (S.orient === 'landscape' ? 'Turn the phone sideways' : 'Turn the phone upright') : 'Open the shutter when the screen goes black'}</span>`; beep(660, .12); await sleep(1000);
   }
   if (phase !== 'count') return;
   cd.innerHTML = ''; sizeStage(); beep(1320, .4); phase = 'pre'; TR.zeroStart();
@@ -885,7 +897,7 @@ syncUI();
   rebuild();
 })();
 
-let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (stage.hidden) drawPreview(); }, 150); });
+let rz; addEventListener('resize', () => { if (phase === 'count' || phase === 'pre') sizeStage(); clearTimeout(rz); rz = setTimeout(() => { if (stage.hidden) drawPreview(); }, 150); });
 }
 </script>
 </body>
