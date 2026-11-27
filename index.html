@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Light Wand">
+<meta name="theme-color" content="#000000">
+<title>Light Wand</title>
+<style>
+/* VOICE: a quiet night-shoot tool, dark so it never ruins your eyes or the exposure
+   IDEA: a light-painting wand; the screen is the wand head
+   PICTURE: the live black preview of what the camera will capture
+   COLOUR and TYPE: near-black, warm-white ink, one coral accent, cyan for live status; system type
+   LAYOUT: preview on top, stacked setting panels, a fixed Start dock at the bottom */
+:root{--bg:#09080c;--panel:#131118;--line:#28232f;--ink:#efeae2;--mute:#9b94a7;--acc:#ff5a4e;--acc2:#5ad1ff;color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%;overflow-x:clip}
+main{max-width:760px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 110px)}
+h1{font-size:34px;line-height:1.05;margin:6px 0 4px;letter-spacing:-.02em}
+h2{font-size:22px;line-height:1.15;margin:0}
+.lead{color:var(--mute);margin:0 0 14px;font-size:15px}
+.viewer{background:#000;border:1px solid var(--line);border-radius:16px;padding:12px;display:grid;place-items:center;min-height:200px}
+#pv{display:block;max-width:100%;touch-action:pan-y}
+#pv.brush{touch-action:none;cursor:crosshair}
+.meta{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--mute);margin:8px 2px 0;flex-wrap:wrap}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.tools .row{flex:1 1 200px}
+details.sec{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin:12px 0;overflow:hidden}
+details.sec>summary{list-style:none;padding:14px 16px;font-weight:600;font-size:17px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;min-height:52px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--mute);font-size:22px;font-weight:400}
+details[open]>summary::after{content:"\2013"}
+.body{padding:0 16px 16px;display:grid;gap:12px}
+.row{display:grid;grid-template-columns:8.6em minmax(0,1fr) 4.4em;align-items:center;gap:10px;font-size:15px}
+.row.w{grid-template-columns:8.6em minmax(0,1fr)}
+.row output{text-align:right;color:var(--mute);font-variant-numeric:tabular-nums;font-size:14px;white-space:nowrap}
+@media(max-width:380px){.row{grid-template-columns:7em minmax(0,1fr) 3.8em}.row.w{grid-template-columns:7em minmax(0,1fr)}}
+select,input[type=text],input[type=number]{font:inherit;font-size:16px;background:#0c0b10;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 12px;width:100%;min-height:44px}
+input[type=range]{width:100%;accent-color:var(--acc);height:32px;margin:0}
+input[type=color]{width:100%;height:44px;border:1px solid var(--line);border-radius:10px;background:#0c0b10;padding:4px}
+input[type=checkbox]{width:24px;height:24px;accent-color:var(--acc);justify-self:start}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+button,.filebtn{font:inherit;font-size:16px;font-weight:600;min-height:44px;padding:10px 16px;border-radius:12px;border:1px solid var(--line);background:#1d1a24;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+button.on{border-color:var(--acc);color:var(--acc)}
+.primary{background:var(--acc)!important;border-color:var(--acc)!important;color:#1a0806!important}
+button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--acc2);outline-offset:2px}
+.filebtn input{display:none}
+.note{font-size:13px;color:var(--mute);margin:0}
+.status{font-size:14px;color:var(--acc2);min-height:1.4em;margin:0}
+.warn{background:#2a1512;border:1px solid #5a2a22;color:#ffc9c2;border-radius:12px;padding:10px 12px;font-size:14px;margin:0 0 12px}
+.dock{position:fixed;left:0;right:0;bottom:0;padding:14px 16px calc(env(safe-area-inset-bottom) + 12px);background:linear-gradient(rgba(9,8,12,0),var(--bg) 35%);display:flex;gap:10px;justify-content:center;z-index:5}
+.dock button{flex:1;max-width:340px;min-height:56px;font-size:18px}
+#stage{position:fixed;inset:0;background:#000;z-index:50;touch-action:none;-webkit-user-select:none;user-select:none}
+#stage canvas{position:absolute;inset:0;width:100%;height:100%}
+#cd{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#fff;pointer-events:none;padding:20px}
+#cd b{display:block;font-size:min(62vw,46vh);line-height:1;font-weight:800;font-variant-numeric:tabular-nums}
+#cd span{display:block;font-size:20px;max-width:15em;margin:14px auto 0;color:#ddd}
+.overlay{position:fixed;inset:0;background:rgba(5,4,8,.97);z-index:40;display:grid;place-items:center;padding:20px;overflow:auto}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;max-width:480px;width:100%;display:grid;gap:14px}
+.card p{margin:0}
+#calC{width:100%;height:190px;background:#000;border-radius:10px}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 90px);transform:translateX(-50%);background:#1d1a24;border:1px solid var(--line);color:var(--ink);padding:10px 16px;border-radius:12px;z-index:60;max-width:90vw;font-size:15px;opacity:0;transition:opacity .25s;pointer-events:none}
+#toast.show{opacity:1}
+.tips{padding-left:1.1em;margin:0}.tips li{margin:6px 0}
+[hidden]{display:none!important}
+@media(prefers-reduced-motion:reduce){#toast{transition:none}}
+</style>
+</head>
+<body>
+<main id="app">
+  <h1>Light Wand</h1>
+  <p class="lead">Paint a floating picture in a long exposure. The phone tracks where it is and lights only the slice of the image that belongs there.</p>
+  <p class="warn" id="secwarn" hidden></p>
+
+  <div class="viewer"><canvas id="pv" width="10" height="10" aria-label="Preview of the light painting"></canvas></div>
+  <div class="meta"><span id="dimL"></span><span>Dashed box = your phone, to scale</span></div>
+  <div class="tools" id="brushTools" hidden>
+    <button id="tErase">Erase</button><button id="tRestore">Restore</button>
+    <label class="row"><span>Brush</span><input type="range" data-k="brush" min="1" max="40"><output data-u="%"></output></label>
+  </div>
+
+  <details class="sec" open>
+    <summary>1 · Picture</summary>
+    <div class="body">
+      <div class="btns">
+        <label class="filebtn primary">Choose image<input type="file" id="file" accept="image/*"></label>
+        <button id="clearImg">Remove image</button>
+      </div>
+      <label class="row w"><span>Use image</span><input type="checkbox" data-k="useImg"></label>
+      <label class="row w"><span>Fit</span><select data-k="fit"><option value="contain">Fit inside</option><option value="cover">Fill and crop</option><option value="stretch">Stretch</option></select></label>
+      <label class="row w"><span>Remove background</span><select data-k="bgMethod">
+        <option value="ai">AI cut-out (people and objects)</option>
+        <option value="flood">Plain background (flood from edges)</option>
+        <option value="dark">Remove dark areas</option>
+        <option value="light">Remove light areas</option>
+        <option value="key">Remove a colour I tap</option></select></label>
+      <label class="row" data-show="bgMethod!=ai"><span>Tolerance</span><input type="range" data-k="tol" min="2" max="100"><output></output></label>
+      <div class="btns"><button id="bgGo" class="primary">Remove background</button><button id="brushBtn">Touch up by hand</button><button id="maskInv">Invert cut-out</button><button id="maskReset">Undo cut-out</button></div>
+      <p class="status" id="bgS"></p>
+      <p class="note">The AI cut-out downloads a model of about 40 MB the first time and runs on the phone. Nothing is uploaded.</p>
+    </div>
+  </details>
+
+  <details class="sec" open>
+    <summary>2 · Pattern</summary>
+    <div class="body">
+      <label class="row w"><span>Pattern</span><select data-k="pat">
+        <option value="none">None</option><option value="spiro">Spirograph</option><option value="rose">Rose mandala</option><option value="lissajous">Lissajous</option>
+        <option value="spiral">Spiral arms</option><option value="rings">Ripple rings</option><option value="burst">Starburst</option><option value="waves">Wave ribbons</option>
+        <option value="helix">Double helix</option><option value="hex">Honeycomb</option><option value="grid">Retro horizon</option><option value="plasma">Contour plasma</option>
+        <option value="tree">Fractal trees</option><option value="sparkle">Sparkles</option><option value="heart">Heartbeat line</option><option value="text">Text</option></select></label>
+      <label class="row w" data-show="pat=text"><span>Text</span><input type="text" data-k="text" maxlength="60"></label>
+      <label class="row w" data-show="pat=text"><span>Text style</span><select data-k="textStyle"><option value="fill">Solid</option><option value="outline">Outline</option><option value="both">Solid and outline</option></select></label>
+      <label class="row w" data-show="pat=text"><span>Weight</span><select data-k="font"><option value="400">Regular</option><option value="700">Bold</option><option value="900">Black</option></select></label>
+      <label class="row w" data-show="pat!=none"><span>Colours</span><select data-k="patMode"><option value="rainbow">Rainbow along the line</option><option value="rainbowx">Rainbow left to right</option><option value="two">Two colours</option><option value="single">One colour</option></select></label>
+      <label class="row w" data-show="pat!=none"><span>Colour 1</span><input type="color" data-k="colA"></label>
+      <label class="row w" data-show="patMode=two"><span>Colour 2</span><input type="color" data-k="colB"></label>
+      <label class="row" data-show="pat!=none"><span>Count</span><input type="range" data-k="count" min="1" max="24"><output></output></label>
+      <label class="row" data-show="pat!=none"><span>Detail</span><input type="range" data-k="detail" min="1" max="12"><output></output></label>
+      <label class="row" data-show="pat!=none"><span>Line width</span><input type="range" data-k="line" min="1" max="20"><output></output></label>
+      <label class="row w" data-show="pat!=none"><span>With image</span><select data-k="patBlend"><option value="over">Add on top</option><option value="behind">Behind the subject</option><option value="inside">Fill the subject</option></select></label>
+      <div class="btns" data-show="pat!=none"><button id="shuffle">Shuffle variation</button><button id="surprise">Surprise me</button></div>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>3 · Effects</summary>
+    <div class="body">
+      <label class="row w"><span>Colour</span><select data-k="color"><option value="original">Original</option><option value="tint">One colour</option><option value="gradient">Gradient</option><option value="rainbowx">Rainbow left to right</option><option value="rainbowy">Rainbow bottom to top</option></select></label>
+      <label class="row w" data-show="color=tint|gradient"><span>Effect colour 1</span><input type="color" data-k="tint"></label>
+      <label class="row w" data-show="color=gradient"><span>Effect colour 2</span><input type="color" data-k="tint2"></label>
+      <label class="row"><span>Brightness</span><input type="range" data-k="bright" min="20" max="300"><output data-u="%"></output></label>
+      <label class="row"><span>Contrast</span><input type="range" data-k="contrast" min="30" max="300"><output data-u="%"></output></label>
+      <label class="row"><span>Saturation</span><input type="range" data-k="sat" min="0" max="300"><output data-u="%"></output></label>
+      <label class="row"><span>Black cut</span><input type="range" data-k="cut" min="0" max="80"><output data-u="%"></output></label>
+      <label class="row w"><span>Outline</span><select data-k="outline"><option value="off">Off</option><option value="neon">Neon edges only</option><option value="fill">Edges and dim fill</option></select></label>
+      <label class="row" data-show="outline!=off"><span>Edge width</span><input type="range" data-k="thick" min="1" max="6"><output></output></label>
+      <label class="row"><span>Posterise</span><input type="range" data-k="poster" min="0" max="8"><output></output></label>
+      <label class="row"><span>Light lines</span><input type="range" data-k="lines" min="0" max="40"><output></output></label>
+      <label class="row"><span>Halftone dots</span><input type="range" data-k="halftone" min="0" max="40"><output></output></label>
+      <label class="row"><span>Glow</span><input type="range" data-k="glow" min="0" max="100"><output data-u="%"></output></label>
+      <label class="row w"><span>Mirror</span><input type="checkbox" data-k="mirror"></label>
+      <p class="note">These two act while painting:</p>
+      <label class="row"><span>Dashes</span><input type="range" data-k="dash" min="0" max="20"><output data-u=" cm"></output></label>
+      <label class="row w"><span>Cycle colours</span><input type="checkbox" data-k="hueCycle"></label>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>4 · Size and motion</summary>
+    <div class="body">
+      <label class="row w"><span>Tracking</span><select data-k="mode"><option value="gyro">Swing (gyroscope)</option><option value="accel">Slide (accelerometer)</option><option value="timed">Steady walk (timed)</option></select></label>
+      <p class="note" data-show="mode=gyro">Hold the phone at arm's length, lock your wrist and turn your whole body. This is the most accurate mode.</p>
+      <p class="note" data-show="mode=accel">Slide the phone in a straight line, along a table edge or rail if you can, and pause briefly at each end.</p>
+      <p class="note" data-show="mode=timed">No sensors. Move at a steady pace; a beep marks each end of the image.</p>
+      <label class="row" data-show="mode=gyro"><span>Arm radius</span><input type="range" data-k="radius" min="20" max="120"><output data-u=" cm"></output></label>
+      <label class="row" data-show="mode=timed"><span>Pace</span><input type="range" data-k="speed" min="5" max="150"><output data-u=" cm/s"></output></label>
+      <label class="row w" data-show="mode=timed"><span>Back and forth</span><input type="checkbox" data-k="pingpong"></label>
+      <label class="row w" data-show="mode=accel"><span>Snap to edges</span><input type="checkbox" data-k="snap"></label>
+      <label class="row"><span>Image width</span><input type="range" data-k="widthCm" min="10" max="300"><output data-u=" cm"></output></label>
+      <div class="btns"><button id="aspect">Match the picture's proportions</button></div>
+      <label class="row w" data-show="mode!=timed"><span>Height</span><select data-k="vert"><option value="fill">Phone screen height</option><option value="rows">Taller: paint in rows</option></select></label>
+      <label class="row" data-show="vert=rows"><span>Image height</span><input type="range" data-k="heightCm" min="15" max="200"><output data-u=" cm"></output></label>
+      <label class="row" data-show="vert!=rows"><span>Use of screen</span><input type="range" data-k="fill" min="30" max="100"><output data-u="%"></output></label>
+      <label class="row w" data-show="mode!=timed"><span>Start point</span><select data-k="anchor"><option value="left">Left edge</option><option value="center">Centre</option><option value="right">Right edge</option><option value="topleft">Top-left (rows)</option></select></label>
+      <label class="row"><span>Light strip</span><input type="range" data-k="strip" min="0" max="160"><output></output></label>
+      <label class="row" data-show="mode!=timed"><span>Lag fix</span><input type="range" data-k="latency" min="0" max="120"><output data-u=" ms"></output></label>
+      <label class="row w"><span>Screen PPI</span><input type="number" data-k="ppi" min="200" max="600" step="1"></label>
+      <p class="note">Left and right are as seen by the camera. Light strip 0 lights the whole screen as a moving window: brighter, but it needs good tracking. Most recent iPhones are 460 PPI; mini models are 476.</p>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>5 · Shoot</summary>
+    <div class="body">
+      <label class="row"><span>Countdown</span><input type="range" data-k="countdown" min="1" max="15"><output data-u=" s"></output></label>
+      <label class="row"><span>Pause before painting</span><input type="range" data-k="preroll" min="0" max="5" step="0.5"><output data-u=" s"></output></label>
+      <label class="row"><span>Paint for</span><input type="range" data-k="duration" min="0" max="60"><output></output></label>
+      <label class="row w"><span>Beeps</span><input type="checkbox" data-k="sound"></label>
+      <label class="row w"><span>Edge ticks</span><input type="checkbox" data-k="ticks"></label>
+      <p class="note">The countdown shows big numbers for the photographer. When the screen goes black and the phone beeps, open the shutter. After the pause, painting starts with a short beep; a double beep means it has finished. Double-tap the screen to stop early.</p>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>How to get a good shot</summary>
+    <div class="body"><ul class="tips">
+      <li>Put the camera on a tripod in a dark room or outside at night. Try ISO 100–400, f/8, and Bulb or 10–30 s. Focus manually where the phone will be.</li>
+      <li>On the phone: brightness to full, Auto-Brightness, True Tone and Night Shift off, Portrait Orientation Lock on, Low Power Mode off.</li>
+      <li>Point the screen at the camera. Wear dark clothes and keep moving, and you will barely show up.</li>
+      <li>Run <b>Sensors</b> once to calibrate; it works out how you hold the phone. Use the live test to check the dot follows you.</li>
+      <li>Sweep across the full width in 1–3 s. Slower sweeps give brighter, smoother pictures. Going back and forth over the image builds up brightness.</li>
+      <li>If fast sweeps look dotted, that is the OLED's PWM flicker. Slow down, or turn it into a style with Dashes.</li>
+      <li>For a full-screen app: Safari Share → Add to Home Screen. The page must be served over https for the motion sensors.</li>
+    </ul></div>
+  </details>
+</main>
+
+<div class="dock" id="dock"><button id="calBtn">Sensors</button><button id="go" class="primary">Start</button></div>
+
+<div class="overlay" id="cal" hidden><div class="card">
+  <h2 id="calT">Sensor setup</h2>
+  <p id="calP"></p>
+  <canvas id="calC" hidden></canvas>
+  <p class="status" id="calS"></p>
+  <div class="btns" id="calB"></div>
+</div></div>
+
+<div id="stage" hidden><canvas id="paint"></canvas><div id="cd"></div></div>
+<div id="toast" role="status"></div>
+
+<script>
+{
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const DEF = {
+  useImg:true, fit:'contain', bgMethod:'ai', tol:30, brush:8,
+  pat:'spiro', patMode:'rainbow', colA:'#ff3b6b', colB:'#3bd5ff', count:7, detail:3, line:3, seed:1, text:'HELLO', textStyle:'fill', font:'900', patBlend:'over',
+  color:'original', tint:'#ffffff', tint2:'#3bd5ff', bright:100, contrast:100, sat:100, cut:8, outline:'off', thick:2, poster:0, lines:0, halftone:0, glow:0, mirror:false,
+  dash:0, hueCycle:false,
+  mode:'gyro', radius:60, widthCm:60, vert:'fill', heightCm:60, fill:100, anchor:'left', strip:12, latency:25, speed:40, pingpong:true, ppi:460, snap:true,
+  countdown:5, preroll:1, duration:10, sound:true, ticks:true,
+  gx:{k:'gamma',s:1}, gy:{k:'beta',s:-1}, ax:{k:'x',s:1}, ay:{k:'y',s:1}
+};
+let S = Object.assign({}, DEF);
+try { Object.assign(S, JSON.parse(localStorage.getItem('lw.s') || '{}')); } catch (e) {}
+const save = () => { try { localStorage.setItem('lw.s', JSON.stringify(S)); } catch (e) {} };
+
+const toastEl = $('#toast'); let toastT;
+function toast(m, ms = 3500) { toastEl.textContent = m; toastEl.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('show'), ms); }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------- geometry ---------- */
+const isPhone = matchMedia('(pointer:coarse)').matches;
+const dprNow = () => window.devicePixelRatio || 1;
+const pxcm = () => S.ppi / (isPhone ? dprNow() : 3) / 2.54;               // CSS px per cm on the phone
+const scrHcm = () => (isPhone ? Math.max(screen.width, screen.height) : 852) / pxcm();
+const scrWcm = () => (isPhone ? Math.min(screen.width, screen.height) : 393) / pxcm();
+const rows = () => S.vert === 'rows' && S.mode !== 'timed';
+function dims() { return { W: S.widthCm, H: rows() ? S.heightCm : scrHcm() * S.fill / 100 }; }
+function anchorOf(W, H) {
+  let ax = S.anchor === 'center' ? -W / 2 : S.anchor === 'right' ? -W : 0;
+  let ay = -H / 2;
+  if (rows() && S.anchor === 'topleft') ay = -H;
+  if (S.mode === 'timed') ax = 0;
+  return { ax, ay };
+}
+
+/* ---------- colour helpers ---------- */
+const hex = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; };
+function hsl(h, s, l) { h = ((h % 360) + 360) % 360 / 360; const f = n => { const k = (n + h * 12) % 12, a = s * Math.min(l, 1 - l); return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); }; return [f(0), f(8), f(4)]; }
+const mix = (a, b, u) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+const css = c => `rgb(${c[0] * 255 | 0},${c[1] * 255 | 0},${c[2] * 255 | 0})`;
+function prgb(t, xr) {
+  const m = S.patMode;
+  if (m === 'rainbow') return hsl(t * 360, 1, .55);
+  if (m === 'rainbowx') return hsl(xr * 300, 1, .55);
+  if (m === 'two') return mix(hex(S.colA), hex(S.colB), .5 - .5 * Math.cos(t * Math.PI * 2));
+  return hex(S.colA);
+}
+const pcol = (t, xr) => css(prgb(t, xr));
+function rng(seed) { let a = seed >>> 0 || 1; return () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const gcd = (a, b) => b ? gcd(b, a % b) : a;
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+
+/* ---------- image + mask ---------- */
+let src = null, srcW = 0, srcH = 0, mask = null, cut = null, imgRect = null, keyCol = null;
+function setSource(im, maskData) {
+  const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height;
+  const k = Math.min(1, 900 / Math.max(iw, ih));
+  srcW = Math.max(1, Math.round(iw * k)); srcH = Math.max(1, Math.round(ih * k));
+  src = mk(srcW, srcH); src.getContext('2d').drawImage(im, 0, 0, srcW, srcH);
+  mask = new Uint8ClampedArray(srcW * srcH).fill(255);
+  if (maskData) for (let i = 0; i < mask.length; i++) mask[i] = maskData[i * 4];
+  makeCut();
+}
+function makeCut() {
+  if (!src) return;
+  cut = mk(srcW, srcH); const c = cut.getContext('2d');
+  const id = src.getContext('2d').getImageData(0, 0, srcW, srcH);
+  for (let i = 0; i < mask.length; i++) id.data[i * 4 + 3] = mask[i];
+  c.putImageData(id, 0, 0);
+}
+function saveImg() {
+  if (!src) { try { localStorage.removeItem('lw.src'); localStorage.removeItem('lw.mask'); } catch (e) {} return; }
+  try {
+    localStorage.setItem('lw.src', src.toDataURL('image/jpeg', .85));
+    const m = mk(srcW, srcH), c = m.getContext('2d'), id = c.createImageData(srcW, srcH);
+    for (let i = 0; i < mask.length; i++) { id.data[i * 4] = id.data[i * 4 + 1] = id.data[i * 4 + 2] = mask[i]; id.data[i * 4 + 3] = 255; }
+    c.putImageData(id, 0, 0); localStorage.setItem('lw.mask', m.toDataURL('image/png'));
+  } catch (e) {}
+}
+const loadImg = url => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
+function feather(m, w, h) {
+  const o = new Uint8ClampedArray(m.length);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let s = 0, n = 0;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const xx = x + i, yy = y + j; if (xx >= 0 && yy >= 0 && xx < w && yy < h) { s += m[yy * w + xx]; n++; } }
+    o[y * w + x] = s / n;
+  }
+  return o;
+}
+function applyMask(keep) { for (let i = 0; i < mask.length; i++) mask[i] = Math.min(mask[i], keep[i]); mask = feather(mask, srcW, srcH); makeCut(); rebuild(); saveImg(); }
+
+const bgS = $('#bgS');
+async function aiRemove() {
+  bgS.textContent = 'Loading the AI model…';
+  try {
+    const mod = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm');
+    const blob = await new Promise(r => src.toBlob(r, 'image/png'));
+    const out = await mod.removeBackground(blob, {
+      model: 'isnet_quint8', output: { format: 'image/png' },
+      progress: (key, cur, tot) => { bgS.textContent = key.includes('fetch') ? `Downloading model… ${tot ? Math.round(cur / tot * 100) : 0}%` : 'Cutting out…'; }
+    });
+    const im = await loadImg(URL.createObjectURL(out));
+    const c = mk(srcW, srcH).getContext('2d'); c.drawImage(im, 0, 0, srcW, srcH);
+    const d = c.getImageData(0, 0, srcW, srcH).data, keep = new Uint8ClampedArray(srcW * srcH);
+    for (let i = 0; i < keep.length; i++) keep[i] = d[i * 4 + 3];
+    applyMask(keep); bgS.textContent = 'Background removed. Use Touch up to fix any edges.';
+  } catch (e) {
+    console.error(e); bgS.textContent = 'The AI cut-out could not run here (it needs internet the first time). Try "Plain background" or "Remove dark areas".';
+  }
+}
+function floodRemove() {
+  const d = src.getContext('2d').getImageData(0, 0, srcW, srcH).data, w = srcW, h = srcH, n = w * h;
+  const tolG = S.tol * 4.4, tolL = Math.max(6, S.tol * .9);
+  const seen = new Uint8Array(n), seed = new Int32Array(n), q = new Int32Array(n); let qh = 0, qt = 0;
+  const dist = (a, b) => { a *= 4; b *= 4; const r = d[a] - d[b], g = d[a + 1] - d[b + 1], bl = d[a + 2] - d[b + 2]; return Math.sqrt(r * r + g * g + bl * bl); };
+  const push = (p, s) => { seen[p] = 1; seed[p] = s; q[qt++] = p; };
+  for (let x = 0; x < w; x++) { push(x, x); const b = (h - 1) * w + x; if (!seen[b]) push(b, b); }
+  for (let y = 1; y < h - 1; y++) { const l = y * w, r = y * w + w - 1; if (!seen[l]) push(l, l); if (!seen[r]) push(r, r); }
+  while (qh < qt) {
+    const p = q[qh++], x = p % w, y = (p / w) | 0, nb = [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1];
+    for (const o of nb) if (o >= 0 && !seen[o] && dist(o, p) < tolL && dist(o, seed[p]) < tolG) push(o, seed[p]);
+  }
+  const keep = new Uint8ClampedArray(n); for (let i = 0; i < n; i++) keep[i] = seen[i] ? 0 : 255;
+  applyMask(keep); bgS.textContent = 'Done. Raise Tolerance if background is left, lower it if the subject got eaten.';
+}
+function lumaRemove(light) {
+  const d = src.getContext('2d').getImageData(0, 0, srcW, srcH).data, keep = new Uint8ClampedArray(srcW * srcH), thr = S.tol * 2.55;
+  for (let i = 0; i < keep.length; i++) {
+    const l = .299 * d[i * 4] + .587 * d[i * 4 + 1] + .114 * d[i * 4 + 2];
+    const v = light ? (255 - thr - l) : (l - thr);
+    keep[i] = Math.max(0, Math.min(255, v * 12 + 128));
+  }
+  applyMask(keep); bgS.textContent = 'Done.';
+}
+function keyRemove() {
+  const d = src.getContext('2d').getImageData(0, 0, srcW, srcH).data, keep = new Uint8ClampedArray(srcW * srcH), t = S.tol * 3;
+  for (let i = 0; i < keep.length; i++) {
+    const r = d[i * 4] - keyCol[0], g = d[i * 4 + 1] - keyCol[1], b = d[i * 4 + 2] - keyCol[2], dd = Math.sqrt(r * r + g * g + b * b);
+    keep[i] = Math.max(0, Math.min(255, (dd - t) * 6 + 128));
+  }
+  applyMask(keep); bgS.textContent = 'Colour removed. Tap again to remove another.';
+}
+
+/* ---------- patterns ---------- */
+function stroke(x, pts, lw, w) {
+  x.lineWidth = lw; x.lineCap = x.lineJoin = 'round';
+  const N = pts.length / 3, st = 4;
+  for (let i = 0; i < N - 1; i += st) {
+    const j = Math.min(N - 1, i + st);
+    x.beginPath(); x.moveTo(pts[3 * i], pts[3 * i + 1]);
+    for (let k = i + 1; k <= j; k++) x.lineTo(pts[3 * k], pts[3 * k + 1]);
+    x.strokeStyle = pcol(pts[3 * i + 2], pts[3 * i] / w); x.stroke();
+  }
+}
+function makePattern(w, h) {
+  const c = mk(w, h), x = c.getContext('2d'), R = rng(S.seed * 9973 + 7);
+  const lw = Math.max(1, S.line * h / 240), n = Math.max(1, Math.round(w / h)), tw = w / n, rad = Math.min(tw, h) * .46, TAU = Math.PI * 2;
+  const line = p => stroke(x, p, lw, w);
+  const C = S.count, D = S.detail;
+  switch (S.pat) {
+    case 'spiro': for (let i = 0; i < n; i++) {
+      const cx = (i + .5) * tw, cy = h / 2, Rr = C + 2; let r = 1 + ((D - 1) % (Rr - 1)); if (r >= Rr) r = Rr - 1;
+      const d = r * (.55 + .45 * R()), turns = r / gcd(Rr, r), steps = Math.min(20000, 720 * turns), sc = rad / (Rr - r + d), p = [];
+      for (let k = 0; k <= steps; k++) { const t = k / steps * turns * TAU; p.push(cx + sc * ((Rr - r) * Math.cos(t) + d * Math.cos((Rr - r) / r * t)), cy + sc * ((Rr - r) * Math.sin(t) - d * Math.sin((Rr - r) / r * t)), k / steps * Math.max(1, turns * .5) + i * .13); }
+      line(p);
+    } break;
+    case 'rose': for (let i = 0; i < n; i++) for (let L = 0; L < 3; L++) {
+      const cx = (i + .5) * tw, cy = h / 2, dd = 1 + ((D + L) % 5), k = C / dd, rot = L * Math.PI / C + S.seed * .1, sc = rad * (1 - L * .28), steps = 1500 * dd, p = [];
+      for (let s = 0; s <= steps; s++) { const th = s / steps * TAU * dd, r = Math.cos(k * th); p.push(cx + sc * r * Math.cos(th + rot), cy + sc * r * Math.sin(th + rot), s / steps + L * .33); }
+      line(p);
+    } break;
+    case 'lissajous': {
+      const a = C * n, b = a + 1 + (D % 3), dl = S.seed * .37, steps = Math.min(20000, 1500 * a), p = [];
+      for (let k = 0; k <= steps; k++) { const t = k / steps * TAU; p.push(w / 2 + Math.sin(a * t + dl) * w * .47, h / 2 + Math.sin(b * t) * h * .44, k / steps * 3); }
+      line(p);
+    } break;
+    case 'spiral': for (let i = 0; i < n; i++) for (let a = 0; a < C; a++) {
+      const cx = (i + .5) * tw, cy = h / 2, turns = 1 + D * .5, steps = Math.round(600 * turns), p = [];
+      for (let s = 0; s <= steps; s++) { const th = s / steps * turns * TAU, r = rad * s / steps, an = th + a * TAU / C + i * .3; p.push(cx + r * Math.cos(an), cy + r * Math.sin(an), s / steps * .8 + a / C); }
+      line(p);
+    } break;
+    case 'rings': for (let i = 0; i < n; i++) {
+      const cx = (i + .5) * tw, cy = h / 2, cnt = C + 2;
+      for (let j = 0; j < cnt; j++) { const base = rad * (j + 1) / cnt, m = j + 3, ph = R() * 6, p = [];
+        for (let s = 0; s <= 400; s++) { const th = s / 400 * TAU, r = base * (1 + D * .012 * Math.sin(m * th + ph)); p.push(cx + r * Math.cos(th), cy + r * Math.sin(th), j / cnt); }
+        line(p); }
+    } break;
+    case 'burst': for (let i = 0; i < n; i++) {
+      const cx = (i + .5) * tw, cy = h / 2, rays = C * 6;
+      for (let j = 0; j < rays; j++) { const a = j / rays * TAU + i * .2, len = rad * (1 - D / 13 * R()), inr = rad * .1, ex = cx + Math.cos(a) * len, ey = cy + Math.sin(a) * len;
+        line([cx + Math.cos(a) * inr, cy + Math.sin(a) * inr, j / rays, ex, ey, j / rays]);
+        x.fillStyle = pcol(j / rays, ex / w); x.beginPath(); x.arc(ex, ey, lw * 1.3, 0, TAU); x.fill(); }
+    } break;
+    case 'waves': {
+      const cyc = (D * .6 + 1) * n, steps = Math.min(8000, 1200 * n);
+      for (let j = 0; j < C; j++) { const ph = j / C * Math.PI, amp = h * .42 * (1 - j * .4 / C), p = [];
+        for (let k = 0; k <= steps; k++) { const xx = k / steps * w; p.push(xx, h / 2 + amp * Math.sin(xx / w * cyc * TAU + ph), j / C + xx / w * .3); }
+        line(p); }
+    } break;
+    case 'helix': {
+      const cyc = (D * .4 + 1) * n, A = h * .38, steps = Math.min(8000, 1200 * n), tot = Math.round(cyc * C), Y = (xx, s) => h / 2 + A * Math.sin(xx / w * cyc * TAU + s * Math.PI);
+      for (let r = 0; r < tot; r++) { const xx = (r + .5) / tot * w; line([xx, Y(xx, 0), xx / w, xx, Y(xx, 1), xx / w + .5]); }
+      for (let s = 0; s < 2; s++) { const p = []; for (let k = 0; k <= steps; k++) { const xx = k / steps * w; p.push(xx, Y(xx, s), s * .5 + xx / w); } line(p); }
+    } break;
+    case 'hex': {
+      const s = h / (C + 1) / 1.5, vy = Math.sqrt(3) * s, cols = Math.ceil(w / (1.5 * s)) + 1, rws = Math.ceil(h / vy) + 1, f = Math.min(.95, .45 + D * .045);
+      for (let i = 0; i < cols; i++) for (let j = 0; j < rws; j++) { const cx = i * 1.5 * s, cy = j * vy + (i % 2 ? vy / 2 : 0), p = [];
+        for (let k = 0; k <= 6; k++) { const a = k / 6 * TAU; p.push(cx + Math.cos(a) * s * f, cy + Math.sin(a) * s * f, i / cols + j * .03); }
+        line(p); }
+    } break;
+    case 'grid': {
+      const hz = h * .52, sunR = h * .3, cx = w / 2;
+      const g = x.createLinearGradient(0, hz - sunR, 0, hz); g.addColorStop(0, pcol(.1, .5)); g.addColorStop(1, pcol(.6, .5));
+      x.fillStyle = g; x.beginPath(); x.arc(cx, hz, sunR, Math.PI, 0); x.fill();
+      x.globalCompositeOperation = 'destination-out';
+      for (let k = 0; k < 6; k++) { const yy = hz - k * sunR / 7 - sunR * .06; x.fillRect(cx - sunR, yy, sunR * 2, sunR * .03 * (6 - k) * .5 + 1); }
+      x.globalCompositeOperation = 'source-over';
+      const nl = C * 2; for (let j = 0; j <= nl; j++) { const yy = hz + (h - hz) * Math.pow(j / nl, 2); line([0, yy, j / nl, w, yy, j / nl]); }
+      const L = D * 4 + 6; for (let j = -L; j <= L; j++) line([cx + j * w * .012, hz, .5 + j / L / 2, cx + j * w / L * .9, h, .5 + j / L / 2]);
+    } break;
+    case 'plasma': {
+      const sw = Math.ceil(w / 3), sh = Math.ceil(h / 3), sm = mk(sw, sh), sx = sm.getContext('2d'), id = sx.createImageData(sw, sh), dd = id.data, f = (.5 + D * .35) / sh * 6;
+      for (let j = 0; j < sh; j++) for (let i = 0; i < sw; i++) {
+        const v = Math.sin(i * f) + Math.sin(j * f * 1.3 + S.seed) + Math.sin((i + j) * f * .7) + Math.sin(Math.hypot(i - sw / 2, j - sh / 2) * f * 1.1);
+        const b = Math.pow(.5 + .5 * Math.cos(v * C * .8), 6), col = prgb((v + 4) / 8, i / sw), o = (j * sw + i) * 4;
+        dd[o] = col[0] * b * 255; dd[o + 1] = col[1] * b * 255; dd[o + 2] = col[2] * b * 255; dd[o + 3] = 255;
+      }
+      sx.putImageData(id, 0, 0); x.imageSmoothingEnabled = true; x.drawImage(sm, 0, 0, w, h);
+    } break;
+    case 'tree': {
+      const depth = Math.min(11, 5 + Math.round(D * .6)), spread = .25 + C * .04;
+      const br = (x0, y0, a, len, d) => { if (d > depth) return; const x1 = x0 + Math.cos(a) * len, y1 = y0 + Math.sin(a) * len;
+        x.lineWidth = Math.max(1, lw * (1.6 - d / depth * 1.3)); x.lineCap = 'round'; x.strokeStyle = pcol(d / depth, x0 / w);
+        x.beginPath(); x.moveTo(x0, y0); x.lineTo(x1, y1); x.stroke();
+        const j = (R() - .5) * .3; br(x1, y1, a - spread + j, len * .74, d + 1); br(x1, y1, a + spread + j, len * .74, d + 1); };
+      for (let i = 0; i < n; i++) br((i + .5) * tw, h * .98, -Math.PI / 2, h * .27, 0);
+    } break;
+    case 'sparkle': {
+      const N = C * 25 * n;
+      for (let j = 0; j < N; j++) { const x0 = R() * w, y0 = R() * h, s = h * .006 * (1 + R() * D * .8), col = pcol(R(), x0 / w);
+        x.strokeStyle = x.fillStyle = col; x.lineWidth = Math.max(1, lw * .5); x.lineCap = 'round';
+        x.beginPath(); x.moveTo(x0 - s * 3, y0); x.lineTo(x0 + s * 3, y0); x.moveTo(x0, y0 - s * 3); x.lineTo(x0, y0 + s * 3); x.stroke();
+        x.beginPath(); x.arc(x0, y0, s * .6, 0, TAU); x.fill(); }
+    } break;
+    case 'heart': {
+      const T = [[0, 0], [.1, 0], [.15, -.08], [.2, 0], [.3, 0], [.33, .12], [.37, -1], [.41, .35], [.45, 0], [.6, 0], [.68, -.18], [.76, 0], [1, 0]];
+      const seg = w / C, base = h * .62, A = h * .5, p = [];
+      for (let b = 0; b < C; b++) for (const [fx, fy] of T) p.push(b * seg + fx * seg, base + (fy + (R() - .5) * D * .012) * A, (b + fx) / C);
+      line(p);
+    } break;
+    case 'text': {
+      const t = S.text || ' ', fam = '-apple-system,"Helvetica Neue",Arial,sans-serif';
+      let fs = h * .78; x.font = `${S.font} ${fs}px ${fam}`; const m = x.measureText(t).width;
+      if (m > w * .96) { fs *= w * .96 / m; x.font = `${S.font} ${fs}px ${fam}`; }
+      const g = x.createLinearGradient(0, 0, w, 0); for (let k = 0; k <= 12; k++) g.addColorStop(k / 12, S.patMode === 'two' ? css(mix(hex(S.colA), hex(S.colB), k / 12)) : pcol(k / 12, k / 12));
+      x.textAlign = 'center'; x.textBaseline = 'middle';
+      if (S.textStyle !== 'outline') { x.fillStyle = g; x.fillText(t, w / 2, h / 2 + fs * .04); }
+      if (S.textStyle !== 'fill') { x.lineWidth = lw; x.lineJoin = 'round'; x.strokeStyle = S.textStyle === 'both' ? '#fff' : g; x.strokeText(t, w / 2, h / 2 + fs * .04); }
+    } break;
+  }
+  return c;
+}
+
+/* ---------- effects ---------- */
+function maxF(A, w, h, r) {
+  if (r < 1) return A;
+  const T = new Float32Array(A.length), O = new Float32Array(A.length);
+  for (let y = 0; y < h; y++) { const o = y * w; for (let x = 0; x < w; x++) { let m = 0; for (let k = Math.max(0, x - r), e = Math.min(w - 1, x + r); k <= e; k++) if (A[o + k] > m) m = A[o + k]; T[o + x] = m; } }
+  for (let x = 0; x < w; x++) for (let y = 0; y < h; y++) { let m = 0; for (let k = Math.max(0, y - r), e = Math.min(h - 1, y + r); k <= e; k++) if (T[k * w + x] > m) m = T[k * w + x]; O[y * w + x] = m; }
+  return O;
+}
+function effColour(w, h) {
+  const m = S.color; if (m === 'original') return null;
+  const byRow = m === 'rainbowy', len = byRow ? h : w, arr = new Float32Array(len * 3), A = hex(S.tint), B = hex(S.tint2);
+  for (let i = 0; i < len; i++) { const u = i / Math.max(1, len - 1); const c = m === 'tint' ? A : m === 'gradient' ? mix(A, B, u) : hsl((byRow ? 1 - u : u) * 300, 1, .5); arr.set(c, i * 3); }
+  return { arr, byRow };
+}
+function applyEffects(c, w, h) {
+  const ec = effColour(w, h), sc = h / 640;
+  const pix = ec || S.bright != 100 || S.contrast != 100 || S.sat != 100 || S.cut > 0 || S.outline !== 'off' || S.poster > 0 || S.lines > 0;
+  if (pix) {
+    const id = c.getImageData(0, 0, w, h), d = id.data, br = S.bright / 100, ct = S.contrast / 100, sa = S.sat / 100, cu = S.cut / 100, pl = S.poster;
+    const lp = S.lines > 0 ? Math.max(2, Math.round(S.lines * sc)) : 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4; let r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255;
+      if (r + g + b === 0) continue;
+      r = ((r - .5) * ct + .5) * br; g = ((g - .5) * ct + .5) * br; b = ((b - .5) * ct + .5) * br;
+      const l = .299 * r + .587 * g + .114 * b; r = l + (r - l) * sa; g = l + (g - l) * sa; b = l + (b - l) * sa;
+      r = Math.max(0, r); g = Math.max(0, g); b = Math.max(0, b);
+      if (ec) { const V = Math.min(1, Math.max(r, g, b)), o = (ec.byRow ? y : x) * 3; r = V * ec.arr[o]; g = V * ec.arr[o + 1]; b = V * ec.arr[o + 2]; }
+      if (cu > 0) { const V = Math.max(r, g, b); if (V < cu) r = g = b = 0; else { const k = Math.min(1, V) > 0 ? ((Math.min(1, V) - cu) / (1 - cu)) / Math.min(1, V) : 0; r *= k; g *= k; b *= k; } }
+      if (pl) { r = Math.round(Math.min(1, r) * pl) / pl; g = Math.round(Math.min(1, g) * pl) / pl; b = Math.round(Math.min(1, b) * pl) / pl; }
+      if (lp && (y % lp) >= Math.max(1, lp / 2)) r = g = b = 0;
+      d[i] = r * 255; d[i + 1] = g * 255; d[i + 2] = b * 255;
+    }
+    if (S.outline !== 'off') {
+      const n = w * h, V = new Float32Array(n), E = new Float32Array(n);
+      for (let p = 0; p < n; p++) V[p] = Math.max(d[p * 4], d[p * 4 + 1], d[p * 4 + 2]) / 255;
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) { const p = y * w + x;
+        const gx = V[p - w + 1] + 2 * V[p + 1] + V[p + w + 1] - V[p - w - 1] - 2 * V[p - 1] - V[p + w - 1];
+        const gy = V[p + w - 1] + 2 * V[p + w] + V[p + w + 1] - V[p - w - 1] - 2 * V[p - w] - V[p - w + 1];
+        E[p] = Math.min(1, Math.hypot(gx, gy) / 2); }
+      const Ed = maxF(E, w, h, S.thick - 1);
+      let CR, CG, CB;
+      if (!ec) { const ch = k => { const a = new Float32Array(n); for (let p = 0; p < n; p++) a[p] = d[p * 4 + k] / 255; return maxF(a, w, h, S.thick); }; CR = ch(0); CG = ch(1); CB = ch(2); }
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const p = y * w + x, i = p * 4, e = Ed[p];
+        let cr, cg, cb;
+        if (ec) { const o = (ec.byRow ? y : x) * 3; cr = ec.arr[o]; cg = ec.arr[o + 1]; cb = ec.arr[o + 2]; }
+        else { const m = Math.max(CR[p], CG[p], CB[p], .001); cr = CR[p] / m; cg = CG[p] / m; cb = CB[p] / m; }
+        let r = e * cr, g = e * cg, b = e * cb;
+        if (S.outline === 'fill') { r = Math.max(r, d[i] / 255 * .3); g = Math.max(g, d[i + 1] / 255 * .3); b = Math.max(b, d[i + 2] / 255 * .3); }
+        d[i] = r * 255; d[i + 1] = g * 255; d[i + 2] = b * 255; }
+    }
+    c.putImageData(id, 0, 0);
+  }
+  if (S.halftone > 0) {
+    const cs = Math.max(3, Math.round(S.halftone * sc)), d = c.getImageData(0, 0, w, h).data;
+    c.fillStyle = '#000'; c.fillRect(0, 0, w, h);
+    for (let y = cs / 2; y < h; y += cs) for (let x = cs / 2; x < w; x += cs) {
+      const i = ((y | 0) * w + (x | 0)) * 4, r = d[i], g = d[i + 1], b = d[i + 2], V = Math.max(r, g, b) / 255; if (V < .03) continue;
+      const k = 255 / Math.max(r, g, b); c.fillStyle = `rgb(${r * k | 0},${g * k | 0},${b * k | 0})`;
+      c.beginPath(); c.arc(x, y, cs * .55 * Math.sqrt(V), 0, Math.PI * 2); c.fill();
+    }
+  }
+  if (S.glow > 0) {
+    c.save(); c.globalCompositeOperation = 'lighter'; c.imageSmoothingEnabled = true;
+    for (const f of [6, 20]) { const sm = mk(Math.max(1, Math.round(w / f)), Math.max(1, Math.round(h / f))); sm.getContext('2d').drawImage(c.canvas, 0, 0, sm.width, sm.height); c.globalAlpha = S.glow / 100 * .8; c.drawImage(sm, 0, 0, w, h); }
+    c.restore();
+  }
+}
+
+/* ---------- composite ---------- */
+const final = mk(8, 8);
+function fitRect(iw, ih, w, h, mode) {
+  if (mode === 'stretch') return { x: 0, y: 0, w, h };
+  const k = mode === 'cover' ? Math.max(w / iw, h / ih) : Math.min(w / iw, h / ih);
+  return { x: (w - iw * k) / 2, y: (h - ih * k) / 2, w: iw * k, h: ih * k };
+}
+function rebuild() {
+  const { W, H } = dims(); let fh = 640, fw = Math.round(fh * W / H);
+  if (fw > 8000) { fh = Math.max(64, Math.round(fh * 8000 / fw)); fw = 8000; }
+  fw = Math.max(8, fw); final.width = fw; final.height = fh;
+  const c = final.getContext('2d', { willReadFrequently: true });
+  c.globalCompositeOperation = 'source-over'; c.fillStyle = '#000'; c.fillRect(0, 0, fw, fh);
+  const hasImg = S.useImg && cut, hasPat = S.pat !== 'none', pat = hasPat ? makePattern(fw, fh) : null;
+  if (hasImg) imgRect = fitRect(srcW, srcH, fw, fh, S.fit);
+  if (hasPat && (!hasImg || S.patBlend === 'behind')) c.drawImage(pat, 0, 0);
+  if (hasImg && hasPat && S.patBlend === 'inside') {
+    const t = mk(fw, fh), tc = t.getContext('2d'); tc.drawImage(cut, imgRect.x, imgRect.y, imgRect.w, imgRect.h);
+    tc.globalCompositeOperation = 'source-in'; tc.drawImage(pat, 0, 0); c.drawImage(t, 0, 0);
+  } else if (hasImg) {
+    c.drawImage(cut, imgRect.x, imgRect.y, imgRect.w, imgRect.h);
+    if (hasPat && S.patBlend === 'over') { c.globalCompositeOperation = 'lighter'; c.drawImage(pat, 0, 0); c.globalCompositeOperation = 'source-over'; }
+  }
+  applyEffects(c, fw, fh);
+  if (S.mirror) { const t = mk(fw, fh); t.getContext('2d').drawImage(final, 0, 0); c.save(); c.setTransform(-1, 0, 0, 1, fw, 0); c.drawImage(t, 0, 0); c.restore(); }
+  drawPreview();
+}
+let rt; const schedule = () => { clearTimeout(rt); rt = setTimeout(rebuild, 80); };
+
+const pv = $('#pv');
+function drawPreview() {
+  const box = pv.parentElement, bw = box.clientWidth - 26, ar = final.width / final.height, maxH = Math.min(420, innerHeight * .42);
+  let w = bw, h = bw / ar; if (h > maxH) { h = maxH; w = h * ar; } if (h < 40 && ar > 1) h = Math.max(h, 1);
+  const dp = dprNow(); pv.style.width = w + 'px'; pv.style.height = h + 'px'; pv.width = Math.round(w * dp); pv.height = Math.round(h * dp);
+  const x = pv.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, pv.width, pv.height); x.imageSmoothingEnabled = true;
+  x.drawImage(final, 0, 0, pv.width, pv.height);
+  const { W, H } = dims(), { ax, ay } = anchorOf(W, H), k = pv.width / W;
+  const pw = scrWcm() * k, ph = scrHcm() * k, px = (0 - ax) * k - pw / 2, py = (ay + H - 0) * k - ph / 2;
+  x.setLineDash([6 * dp, 5 * dp]); x.strokeStyle = 'rgba(90,209,255,.8)'; x.lineWidth = 1.5 * dp; x.strokeRect(px, py, pw, ph); x.setLineDash([]);
+  $('#dimL').textContent = `${Math.round(W)} × ${Math.round(H)} cm in the photo`;
+}
+
+/* ---------- UI binding ---------- */
+const NOBUILD = new Set(['countdown', 'preroll', 'duration', 'sound', 'ticks', 'latency', 'snap', 'brush', 'tol', 'bgMethod', 'dash', 'hueCycle', 'speed', 'pingpong', 'radius', 'anchor', 'strip']);
+function fmt(el) {
+  const k = el.dataset.k, v = S[k], o = el.parentElement.querySelector('output'); if (!o) return;
+  if (k === 'strip') o.textContent = v == 0 ? 'Full' : (v / pxcm() * 10).toFixed(1) + ' mm';
+  else if (k === 'duration') o.textContent = v == 0 ? 'Until stop' : v + ' s';
+  else if (k === 'dash') o.textContent = v == 0 ? 'Off' : v + ' cm';
+  else if (k === 'lines' || k === 'halftone' || k === 'poster') o.textContent = v == 0 ? 'Off' : v;
+  else o.textContent = v + (o.dataset.u || '');
+}
+function updateShow() {
+  for (const el of $$('[data-show]')) {
+    const ok = el.dataset.show.split('&').every(cond => { const m = cond.match(/^(\w+)(!?=)(.+)$/); const has = m[3].split('|').includes(String(S[m[1]])); return m[2] === '=' ? has : !has; });
+    el.hidden = !ok;
+  }
+}
+function syncUI() {
+  for (const el of $$('[data-k]')) { const k = el.dataset.k; if (el.type === 'checkbox') el.checked = !!S[k]; else el.value = S[k]; fmt(el); }
+  updateShow();
+}
+function onField(e) {
+  const el = e.target, k = el.dataset && el.dataset.k; if (!k) return;
+  const v = el.type === 'checkbox' ? el.checked : (el.type === 'range' || el.type === 'number') ? parseFloat(el.value) : el.value;
+  if (el.type === 'number' && !(v > 0)) return;
+  if (S[k] === v) return;
+  S[k] = v; save(); fmt(el); updateShow();
+  if (k === 'mode' && v !== 'timed' && S.vert === 'rows') { /* keep */ }
+  if (NOBUILD.has(k)) { if (k === 'anchor') drawPreview(); } else schedule();
+}
+document.addEventListener('input', onField); document.addEventListener('change', onField);
+
+$('#file').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { const url = URL.createObjectURL(f), im = await loadImg(url); setSource(im); URL.revokeObjectURL(url);
+    S.useImg = true; matchAspect(); syncUI(); rebuild(); saveImg(); bgS.textContent = 'Image loaded. Remove the background next, or keep it.'; }
+  catch (err) { toast('That image could not be opened.'); }
+  e.target.value = '';
+});
+$('#clearImg').onclick = () => { src = cut = mask = null; saveImg(); rebuild(); };
+$('#bgGo').onclick = () => {
+  if (!src) return toast('Choose an image first.');
+  if (S.bgMethod === 'ai') aiRemove(); else if (S.bgMethod === 'flood') floodRemove();
+  else if (S.bgMethod === 'dark') lumaRemove(false); else if (S.bgMethod === 'light') lumaRemove(true);
+  else { picking = true; bgS.textContent = 'Tap the colour to remove on the preview.'; }
+};
+$('#maskInv').onclick = () => { if (!mask) return; for (let i = 0; i < mask.length; i++) mask[i] = 255 - mask[i]; makeCut(); rebuild(); saveImg(); };
+$('#maskReset').onclick = () => { if (!mask) return; mask.fill(255); makeCut(); rebuild(); saveImg(); bgS.textContent = 'Cut-out undone.'; };
+function matchAspect() {
+  const { H } = dims(); let ar = null;
+  if (S.useImg && src) ar = srcW / srcH;
+  else if (S.pat === 'text') { const x = mk(10, 10).getContext('2d'); x.font = `${S.font} 100px -apple-system,Arial,sans-serif`; ar = x.measureText(S.text || ' ').width / 100 / .78 * 1.08; }
+  else ar = 1;
+  S.widthCm = Math.max(10, Math.min(300, Math.round(H * ar))); save();
+}
+$('#aspect').onclick = () => { matchAspect(); syncUI(); rebuild(); };
+$('#shuffle').onclick = () => { S.seed = (S.seed % 9999) + 1; S.detail = 1 + Math.floor(Math.random() * 12); save(); syncUI(); rebuild(); };
+$('#surprise').onclick = () => {
+  const ps = ['spiro', 'rose', 'lissajous', 'spiral', 'rings', 'burst', 'waves', 'helix', 'hex', 'grid', 'plasma', 'tree', 'sparkle'], ms = ['rainbow', 'rainbowx', 'two'];
+  S.pat = ps[Math.floor(Math.random() * ps.length)]; S.patMode = ms[Math.floor(Math.random() * 3)];
+  S.count = 2 + Math.floor(Math.random() * 14); S.detail = 1 + Math.floor(Math.random() * 12); S.seed = 1 + Math.floor(Math.random() * 999);
+  S.colA = css(hsl(Math.random() * 360, 1, .6)).replace(/rgb\((\d+),(\d+),(\d+)\)/, (_, r, g, b) => '#' + [r, g, b].map(v => (+v).toString(16).padStart(2, '0')).join(''));
+  save(); syncUI(); rebuild();
+};
+
+/* brush + colour picking on preview */
+let tool = null, picking = false, painting = false, brushPending = false;
+const setTool = t => { tool = tool === t ? null : t; $('#tErase').classList.toggle('on', tool === 'erase'); $('#tRestore').classList.toggle('on', tool === 'restore'); pv.classList.toggle('brush', !!tool); };
+$('#brushBtn').onclick = () => { if (!src) return toast('Choose an image first.'); const tb = $('#brushTools'); tb.hidden = !tb.hidden; if (!tb.hidden) { setTool('erase'); tb.scrollIntoView({ block: 'nearest' }); } else { tool = 'x'; setTool('x'); } };
+$('#tErase').onclick = () => setTool('erase'); $('#tRestore').onclick = () => setTool('restore');
+function toSrc(e) {
+  const r = pv.getBoundingClientRect(); let fx = (e.clientX - r.left) / r.width * final.width; const fy = (e.clientY - r.top) / r.height * final.height;
+  if (S.mirror) fx = final.width - fx; if (!imgRect) return null;
+  return [(fx - imgRect.x) / imgRect.w * srcW, (fy - imgRect.y) / imgRect.h * srcH];
+}
+function dab(e) {
+  const p = toSrc(e); if (!p) return; const rad = S.brush * Math.max(srcW, srcH) / 200, v = tool === 'erase' ? 0 : 255;
+  for (let y = Math.max(0, p[1] - rad | 0); y < Math.min(srcH, p[1] + rad + 1); y++) for (let x = Math.max(0, p[0] - rad | 0); x < Math.min(srcW, p[0] + rad + 1); x++) {
+    const dd = Math.hypot(x - p[0], y - p[1]); if (dd > rad) continue; const i = y * srcW + x, soft = Math.min(1, (rad - dd) / (rad * .3));
+    mask[i] = v ? Math.max(mask[i], 255 * soft) : Math.min(mask[i], 255 * (1 - soft));
+  }
+  if (!brushPending) { brushPending = true; requestAnimationFrame(() => { brushPending = false; makeCut(); rebuild(); }); }
+}
+pv.addEventListener('pointerdown', e => {
+  if (picking && src) { const p = toSrc(e); if (p && p[0] >= 0 && p[1] >= 0 && p[0] < srcW && p[1] < srcH) { const d = src.getContext('2d').getImageData(p[0] | 0, p[1] | 0, 1, 1).data; keyCol = [d[0], d[1], d[2]]; picking = false; keyRemove(); } return; }
+  if ((tool === 'erase' || tool === 'restore') && mask) { painting = true; pv.setPointerCapture(e.pointerId); dab(e); }
+});
+pv.addEventListener('pointermove', e => { if (painting) dab(e); });
+const endBrush = () => { if (painting) { painting = false; saveImg(); } };
+pv.addEventListener('pointerup', endBrush); pv.addEventListener('pointercancel', endBrush);
+
+/* ---------- motion sensing ---------- */
+const M = { on: false, lastTs: null, lastPerf: 0, rr: { alpha: 0, beta: 0, gamma: 0 }, acc: { x: 0, y: 0, z: 0 }, subs: new Set(), count: 0 };
+function onMotion(e) {
+  const ts = e.timeStamp || performance.now(), rr = e.rotationRate || {}, a = e.acceleration || {};
+  M.rr = { alpha: rr.alpha || 0, beta: rr.beta || 0, gamma: rr.gamma || 0 }; M.acc = { x: a.x || 0, y: a.y || 0, z: a.z || 0 }; M.count++;
+  const dt = M.lastTs == null ? 0 : Math.min(.05, Math.max(0, (ts - M.lastTs) / 1000)); M.lastTs = ts; M.lastPerf = performance.now();
+  for (const f of M.subs) f(dt);
+}
+async function ensureMotion() {
+  if (M.on) return true;
+  if (!window.isSecureContext) { toast('Motion sensors need the page opened over https://', 6000); return false; }
+  try {
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      const r = await DeviceMotionEvent.requestPermission(); if (r !== 'granted') throw new Error('denied');
+    }
+    addEventListener('devicemotion', onMotion); M.on = true; return true;
+  } catch (e) { toast('Motion access was refused. Close the tab, reopen the page and tap Allow when asked.', 7000); return false; }
+}
+const TR = {
+  run: false, zeroing: false, bias: { g: { alpha: 0, beta: 0, gamma: 0 }, a: { x: 0, y: 0, z: 0 } }, zs: null,
+  reset() { Object.assign(this, { angX: 0, angY: 0, rateX: 0, rateY: 0, px: 0, py: 0, vx: 0, vy: 0, still: 0, pk: 0 }); },
+  zeroStart() { this.zs = { n: 0, g: { alpha: 0, beta: 0, gamma: 0 }, a: { x: 0, y: 0, z: 0 } }; this.zeroing = true; },
+  zeroEnd() { this.zeroing = false; const z = this.zs; if (z && z.n > 10) { for (const k in z.g) this.bias.g[k] = z.g[k] / z.n; for (const k in z.a) this.bias.a[k] = z.a[k] / z.n; } },
+  step(dt) {
+    if (this.zeroing) { const z = this.zs; z.n++; for (const k in z.g) z.g[k] += M.rr[k]; for (const k in z.a) z.a[k] += M.acc[k]; }
+    if (!this.run || !dt) return;
+    const g = M.rr, b = this.bias.g, A = M.acc, ba = this.bias.a;
+    this.rateX = (g[S.gx.k] - b[S.gx.k]) * S.gx.s; this.rateY = (g[S.gy.k] - b[S.gy.k]) * S.gy.s;
+    this.angX += this.rateX * dt; this.angY += this.rateY * dt;
+    let axv = (A[S.ax.k] - ba[S.ax.k]) * S.ax.s, ayv = (A[S.ay.k] - ba[S.ay.k]) * S.ay.s;
+    if (Math.abs(axv) < .06) axv = 0; if (Math.abs(ayv) < .06) ayv = 0;
+    const am = Math.hypot(A.x - ba.x, A.y - ba.y, A.z - ba.z), gm = Math.hypot(g.alpha - b.alpha, g.beta - b.beta, g.gamma - b.gamma);
+    this.still = (am < .22 && gm < 10) ? this.still + dt : 0;
+    const pvx = this.vx, lk = Math.exp(-dt * .4);
+    this.vx = (this.vx + axv * dt) * lk; this.vy = (this.vy + ayv * dt) * lk;
+    if (this.still > .08) { this.vx = 0; this.vy = 0; }
+    this.px += this.vx * dt * 100; this.py += this.vy * dt * 100;
+    if (S.mode === 'accel' && S.snap && geo) {
+      this.pk = Math.max(this.pk, Math.abs(pvx));
+      if (this.pk > .12 && (this.vx === 0 || Math.sign(this.vx) !== Math.sign(pvx))) {
+        const L = geo.ax, Rr = geo.ax + geo.W, tol = geo.W * .4;
+        if (Math.abs(this.px - L) < tol) this.px = L; else if (Math.abs(this.px - Rr) < tol) this.px = Rr;
+        this.pk = 0;
+      }
+    }
+  },
+  get() {
+    const lat = S.latency / 1000 + Math.min(.05, (performance.now() - M.lastPerf) / 1000), rad = Math.PI / 180;
+    let x, y;
+    if (S.mode === 'gyro') { x = S.radius * (this.angX + this.rateX * lat) * rad; y = S.radius * (this.angY + this.rateY * lat) * rad; }
+    else { x = this.px + this.vx * 100 * lat; y = this.py + this.vy * 100 * lat; }
+    return { x, y: rows() ? y : 0 };
+  }
+};
+TR.reset(); M.subs.add(dt => TR.step(dt));
+
+/* ---------- sound ---------- */
+let AC = null;
+function audioInit() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+  try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); AC.resume(); } catch (e) {}
+}
+function beep(f, d, v = .25) {
+  if (!S.sound || !AC) return;
+  try { const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime; o.frequency.value = f;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+    o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + d + .02); } catch (e) {}
+}
+
+/* ---------- shoot ---------- */
+const stage = $('#stage'), pc = $('#paint'), cd = $('#cd'); let ctx = null, phase = 'idle', raf = 0, t0 = 0, geo = null, wl = null, lastTap = 0, inside = null, lastPass = 0;
+async function wake() { try { wl = await navigator.wakeLock.request('screen'); } catch (e) {} }
+function sizeStage() { const d = dprNow(); pc.width = Math.round(innerWidth * d); pc.height = Math.round(innerHeight * d); ctx = pc.getContext('2d'); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, pc.width, pc.height); }
+async function shoot() {
+  audioInit();
+  if (S.mode !== 'timed' && !(await ensureMotion())) return;
+  wake(); stage.hidden = false; sizeStage(); phase = 'count';
+  for (let i = S.countdown; i > 0; i--) {
+    if (phase !== 'count') return;
+    cd.innerHTML = `<b>${i}</b><span>Open the shutter when the screen goes black</span>`; beep(660, .12); await sleep(1000);
+  }
+  if (phase !== 'count') return;
+  cd.innerHTML = ''; sizeStage(); beep(1320, .4); phase = 'pre'; TR.zeroStart();
+  await sleep(Math.max(.3, S.preroll) * 1000);
+  if (phase !== 'pre') { TR.zeroing = false; return; }
+  TR.zeroEnd(); TR.reset();
+  const k = pxcm() * dprNow(), d = dims(); if (!rows()) d.H = pc.height / k * S.fill / 100;
+  geo = Object.assign({ k }, d, anchorOf(d.W, d.H)); inside = null; lastPass = 0;
+  TR.run = true; phase = 'paint'; t0 = performance.now(); beep(990, .08); raf = requestAnimationFrame(frame);
+}
+function frame(now) {
+  if (phase !== 'paint') return;
+  raf = requestAnimationFrame(frame);
+  const t = (now - t0) / 1000, g = geo, cw = pc.width, ch = pc.height, k = g.k;
+  if (S.duration > 0 && t > S.duration) return endPaint();
+  let p;
+  if (S.mode === 'timed') {
+    const dist = S.speed * t, pass = Math.floor(dist / g.W), f = dist - pass * g.W;
+    if (!S.pingpong && dist > g.W + 2) return endPaint();
+    if (pass !== lastPass) { lastPass = pass; beep(1200, .05, .2); }
+    p = { x: S.pingpong && pass % 2 ? g.W - f : (S.pingpong ? f : dist), y: 0 };
+  } else p = TR.get();
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cw, ch);
+  const isIn = p.x >= g.ax && p.x <= g.ax + g.W;
+  if (S.ticks && S.mode !== 'timed' && inside !== null && isIn !== inside) beep(isIn ? 1500 : 900, .03, .15);
+  inside = isIn;
+  if (S.dash > 0 && Math.floor((p.x - g.ax) / S.dash) % 2 !== 0) return;
+  const cx = cw / 2, cy = ch / 2, sw = S.strip > 0 ? S.strip * dprNow() : cw;
+  const ia = Math.max(p.x - sw / 2 / k, g.ax), ib = Math.min(p.x + sw / 2 / k, g.ax + g.W);
+  const ja = Math.max(p.y - (ch - cy) / k, g.ay), jb = Math.min(p.y + cy / k, g.ay + g.H);
+  if (ib <= ia || jb <= ja) return;
+  const FW = final.width, FH = final.height;
+  let sx = (ia - g.ax) / g.W * FW, sW = (ib - ia) / g.W * FW; const sy = (g.ay + g.H - jb) / g.H * FH, sH = (jb - ja) / g.H * FH;
+  if (sW < 1) { sx = Math.min(FW - 1, Math.max(0, sx + sW / 2 - .5)); sW = 1; }
+  const dx = cx + (ia - p.x) * k, dW = (ib - ia) * k, dy = cy - (jb - p.y) * k, dH = (jb - ja) * k;
+  ctx.imageSmoothingEnabled = true; ctx.drawImage(final, sx, sy, sW, Math.max(.5, sH), dx, dy, dW, dH);
+  if (S.hueCycle) { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = `hsl(${(t * 90) % 360},100%,60%)`; ctx.fillRect(dx, dy, dW, dH); ctx.globalCompositeOperation = 'source-over'; }
+}
+function endPaint() {
+  phase = 'done'; TR.run = false; cancelAnimationFrame(raf); if (ctx) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, pc.width, pc.height); }
+  beep(880, .1); setTimeout(() => beep(660, .25), 180);
+}
+function exitStage() { phase = 'idle'; TR.run = false; TR.zeroing = false; cancelAnimationFrame(raf); cd.innerHTML = ''; stage.hidden = true; try { wl && wl.release(); } catch (e) {} wl = null; }
+stage.addEventListener('pointerdown', e => {
+  e.preventDefault(); const now = performance.now();
+  if (phase === 'done') return exitStage();
+  if (now - lastTap < 400) { lastTap = 0; if (phase === 'paint') endPaint(); else exitStage(); } else lastTap = now;
+});
+$('#go').onclick = shoot;
+
+/* ---------- calibration ---------- */
+const cal = $('#cal'), calT = $('#calT'), calP = $('#calP'), calS = $('#calS'), calB = $('#calB'), calC = $('#calC'); let testRaf = 0;
+function calShow(title, text, buttons, canvas) {
+  calT.textContent = title; calP.textContent = text; calS.textContent = ''; calC.hidden = !canvas; calB.innerHTML = '';
+  for (const b of buttons) { const el = document.createElement('button'); el.textContent = b[0]; if (b[2]) el.className = 'primary'; el.onclick = b[1]; calB.append(el); }
+}
+const calClose = () => { cancelAnimationFrame(testRaf); TR.run = false; cal.hidden = true; };
+function record(ms) {
+  return new Promise(res => { const rec = [], f = dt => rec.push({ dt, g: { ...M.rr }, a: { ...M.acc } }); M.subs.add(f); setTimeout(() => { M.subs.delete(f); res(rec); }, ms); });
+}
+function calIntro() {
+  calShow('Sensor setup', 'Do this once per phone, or whenever you change how you hold it. You will hold still, then make one sweep.',
+    [['Enable motion sensors', async () => { audioInit(); if (await ensureMotion()) calHold(); }, true], ['Skip to live test', () => M.on ? calTest() : toast('Enable the sensors first.')], ['Close', calClose]]);
+}
+function calHold() {
+  calShow('1. Hold still', 'Hold the phone steady with the screen facing where the camera will be. This measures sensor drift.',
+    [['Start', async () => {
+      calS.textContent = 'Hold still…'; calB.hidden = true; await sleep(300);
+      if (!M.count) { await sleep(800); if (!M.count) { calB.hidden = false; calS.textContent = 'No sensor data. This device or browser may not have motion sensors.'; return; } }
+      TR.zeroStart(); await sleep(1500); TR.zeroEnd(); calB.hidden = false; calSweep(false);
+    }, true], ['Close', calClose]]);
+}
+function calSweep(vert) {
+  calShow(vert ? '3. Sweep upwards' : '2. Sweep left to right',
+    vert ? 'Hold the phone low. After the beep, move it up once, the way you will paint, then stop.'
+         : "Hold the phone at the camera's left. After the beep, sweep it once to the camera's right (your right to left if you face the camera), the way you will paint, then stop.",
+    [['Record', async () => {
+      calB.hidden = true; calS.textContent = 'Get ready…'; await sleep(700); beep(990, .1); calS.textContent = 'Sweep now!';
+      const rec = await record(2200); beep(660, .2); calB.hidden = false; analyse(rec, vert);
+    }, true], ['Close', calClose]]);
+}
+function analyse(rec, vert) {
+  const bg = TR.bias.g, ba = TR.bias.a, gk = ['alpha', 'beta', 'gamma'], ak = ['x', 'y', 'z'], ex = vert ? S.gx.k : null, exa = vert ? S.ax.k : null;
+  const ang = {}, v = {}, ext = {}; gk.forEach(k => ang[k] = 0); ak.forEach(k => { v[k] = 0; ext[k] = 0; });
+  for (const r of rec) { for (const k of gk) ang[k] += (r.g[k] - bg[k]) * r.dt; for (const k of ak) { v[k] += (r.a[k] - ba[k]) * r.dt; if (Math.abs(v[k]) > Math.abs(ext[k])) ext[k] = v[k]; } }
+  const bestG = gk.filter(k => k !== ex).sort((a, b) => Math.abs(ang[b]) - Math.abs(ang[a]))[0];
+  const bestA = ak.filter(k => k !== exa).sort((a, b) => Math.abs(ext[b]) - Math.abs(ext[a]))[0];
+  const deg = Math.abs(ang[bestG]), spd = Math.abs(ext[bestA]);
+  const G = { k: bestG, s: Math.sign(ang[bestG]) || 1 }, A = { k: bestA, s: Math.sign(ext[bestA]) || 1 };
+  if (vert) { S.gy = G; S.ay = A; } else { S.gx = G; S.ax = A; } save();
+  const weak = deg < 10 && spd < .15;
+  calShow(weak ? 'That sweep was too small' : 'Got it',
+    weak ? 'Barely any movement was measured. Try again with a bigger, smoother sweep.'
+         : `Turned ${deg.toFixed(0)}° (about ${Math.round(S.radius * deg * Math.PI / 180)} cm at ${S.radius} cm arm radius), peak slide speed ${(spd * 100).toFixed(0)} cm/s.`,
+    weak ? [['Try again', () => calSweep(vert), true], ['Close', calClose]]
+         : [['Next', () => (!vert && rows()) ? calSweep(true) : calTest(), true], ['Redo', () => calSweep(vert)]]);
+}
+function calTest() {
+  calShow('Live test', S.mode === 'timed' ? 'Steady walk mode does not use the sensors. Switch Tracking to Swing or Slide to test them.'
+    : 'The dashed box is the phone and the picture is the image in space. Hold at the start point, tap Zero here, then sweep across. The box should follow you.',
+    [['Zero here', () => { TR.zeroStart(); setTimeout(() => { TR.zeroEnd(); TR.reset(); }, 400); }, true], ['Recalibrate', calHold], ['Done', calClose]], S.mode !== 'timed');
+  if (S.mode === 'timed') return;
+  TR.reset(); TR.run = true; const d = dims(); geo = Object.assign({ k: 1 }, d, anchorOf(d.W, d.H));
+  const draw = () => {
+    testRaf = requestAnimationFrame(draw);
+    const dp = dprNow(), w = calC.clientWidth * dp, h = calC.clientHeight * dp; if (calC.width !== w) { calC.width = w; calC.height = h; }
+    const x = calC.getContext('2d'), p = TR.get(), spanX = d.W + scrWcm() * 2, spanY = Math.max(d.H, scrHcm()) * 1.3;
+    const k = Math.min(w / spanX, h / spanY), ox = w / 2 - (geo.ax + d.W / 2) * k, oy = h / 2 + (geo.ay + d.H / 2) * k;
+    x.fillStyle = '#000'; x.fillRect(0, 0, w, h);
+    x.globalAlpha = .9; x.drawImage(final, ox + geo.ax * k, oy - (geo.ay + d.H) * k, d.W * k, d.H * k); x.globalAlpha = 1;
+    x.strokeStyle = '#5ad1ff'; x.lineWidth = 2 * dp; x.setLineDash([5 * dp, 4 * dp]);
+    x.strokeRect(ox + (p.x - scrWcm() / 2) * k, oy - (p.y + scrHcm() / 2) * k, scrWcm() * k, scrHcm() * k); x.setLineDash([]);
+    calS.textContent = `x ${p.x.toFixed(1)} cm${rows() ? `   y ${p.y.toFixed(1)} cm` : ''}`;
+  };
+  draw();
+}
+$('#calBtn').onclick = () => { cal.hidden = false; M.on ? calHold() : calIntro(); };
+
+/* ---------- start ---------- */
+if (!window.isSecureContext) { const w = $('#secwarn'); w.hidden = false; w.textContent = 'This page is not on https, so the motion sensors are blocked. Steady walk mode still works. Host the file on an https site to use Swing or Slide.'; }
+else if (window.top !== window.self) { const w = $('#secwarn'); w.hidden = false; w.textContent = 'This page is inside a frame, which may block the motion sensors. Open it directly in Safari.'; }
+syncUI();
+(async () => {
+  try { const s = localStorage.getItem('lw.src'), m = localStorage.getItem('lw.mask');
+    if (s) { const im = await loadImg(s); let md = null; if (m) { const mi = await loadImg(m), c = mk(mi.width, mi.height).getContext('2d'); c.drawImage(mi, 0, 0); md = c.getImageData(0, 0, mi.width, mi.height).data; }
+      setSource(im, md && md.length === im.width * im.height * 4 ? md : null); } } catch (e) {}
+  rebuild();
+})();
+
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (stage.hidden) drawPreview(); }, 150); });
+}
+</script>
+</body>
+</html>
